@@ -11,11 +11,12 @@ def lister_conteneurs(session):
     response = response.json()
 
     result = []
-    for r in response :         
-        result.append({"id": r["Id"], "name": r["Names"][0].lstrip("/"), "image": r["Image"], "state": r["State"]} | stats)
-        if r["State"] == "running" : 
+    for r in response:
+        conteneur = {"id": r["Id"], "name": r["Names"][0].lstrip("/"), "image": r["Image"], "state": r["State"]}
+        if r["State"] == "running":
             stats = recuperer_stats(session, r["Id"])
-            result.append(stats)
+            conteneur = conteneur | stats
+        result.append(conteneur)
     return result
 
 
@@ -38,5 +39,5 @@ def recuperer_stats(session, conteneur_id):
 
 if __name__ == "__main__":
     session = requests.Session()
-    stats = recuperer_stats(session, "4c21cc5bf2fdd11d24aa3c6de764a6db7aad971fbbdfdeb0279603a4af900a83")
-    print(json.dumps(stats, indent=2))
+    conteneurs = lister_conteneurs(session)
+    print(json.dumps(conteneurs, indent=2))
