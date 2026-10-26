@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 import requests
+import sys
 
 DOCKER = os.environ.get("DOCKER_API_URL", "http://127.0.0.1:2375")
 NETBOX = os.environ.get("NETBOX_URL", "http://127.0.0.1:8080")
@@ -58,17 +59,19 @@ def recuperer_netbox(session):
 
 
 if __name__ == "__main__":
-    session = requests.Session()
-    conteneurs = lister_conteneurs(session)
+    try:
+        session = requests.Session()
+        conteneurs = lister_conteneurs(session)
+        netbox = recuperer_netbox(session)
+        inventaire = {"date": datetime.now().isoformat(), "conteneurs": conteneurs} | netbox
 
-    netbox = recuperer_netbox(session)
-    inventaire = {"date": datetime.now().isoformat(), "conteneurs": conteneurs} | netbox
+        with open("inventaire.json", 'w') as f:
+            json.dump(inventaire, f, indent=2)
 
-    with open("inventaire.json", 'w') as f:
-        json.dump(inventaire, f, indent=2)
-
-    compteurs = {}
-    for c in conteneurs:
-        etat = c["state"]
-        compteurs[etat] = compteurs.get(etat, 0) + 1
-    print(f"{len(conteneurs)} conteneurs : {compteurs}")
+        compteurs = {}
+        for c in conteneurs:
+            etat = c["state"]
+            compteurs[etat] = compteurs.get(etat, 0) + 1
+        print(f"{len(conteneurs)} conteneurs : {compteurs}")
+    except requests.exceptions.RequestException as erreur:
+        sys.exit(f"Erreur : impossible de contacter une des API ({erreur})")
