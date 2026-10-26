@@ -4,6 +4,8 @@ from datetime import datetime
 import requests
 
 DOCKER = os.environ.get("DOCKER_API_URL", "http://127.0.0.1:2375")
+NETBOX = os.environ.get("NETBOX_URL", "http://127.0.0.1:8080")
+NETBOX_TOKEN = os.environ["NETBOX_TOKEN"]
 
 
 def lister_conteneurs(session):
@@ -38,11 +40,29 @@ def recuperer_stats(session, conteneur_id):
     return {"cpu_percent": pourcent, "memoire_mo": memoire_mo}
 
 
+def recuperer_netbox(session):
+    headers = {"Authorization": f"Bearer {NETBOX_TOKEN}"}
+
+    response = session.get(NETBOX + '/api/status/', headers=headers, timeout=5)
+    response.raise_for_status()
+    version = response.json()["netbox-version"]
+
+    url = NETBOX + "/api/core/object-types/?limit=50"
+    compteur = 0
+    while url:
+        response = session.get(url, headers=headers, timeout=5).json()
+        compteur += len(response["results"])
+        url = response["next"]
+
+    return {"netbox_version": version, "nombre_types_objets": compteur}
+
+
 if __name__ == "__main__":
     session = requests.Session()
     conteneurs = lister_conteneurs(session)
 
-    inventaire = {"date" : datetime.now().isoformat(), "conteneurs" : conteneurs}
+    netbox = recuperer_netbox(session)
+    inventaire = {"date": datetime.now().isoformat(), "conteneurs": conteneurs} | netbox
 
     with open("inventaire.json", 'w') as f:
         json.dump(inventaire, f, indent=2)
