@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 import requests
 
 DOCKER = os.environ.get("DOCKER_API_URL", "http://127.0.0.1:2375")
@@ -40,4 +41,14 @@ def recuperer_stats(session, conteneur_id):
 if __name__ == "__main__":
     session = requests.Session()
     conteneurs = lister_conteneurs(session)
-    print(json.dumps(conteneurs, indent=2))
+
+    inventaire = {"date" : datetime.now().isoformat(), "conteneurs" : conteneurs}
+
+    with open("inventaire.json", 'w') as f:
+        json.dump(inventaire, f, indent=2)
+
+    compteurs = {}
+    for c in conteneurs:
+        etat = c["state"]
+        compteurs[etat] = compteurs.get(etat, 0) + 1
+    print(f"{len(conteneurs)} conteneurs : {compteurs}")
