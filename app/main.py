@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Depends
 import os
 import requests
 import json
 from typing import Literal
 from pydantic import BaseModel, Field
+from app.securite import exiger_lecture, exiger_admin
 
 DOCKER = os.environ.get("DOCKER_API_URL", "http://127.0.0.1:2375")
 
@@ -36,7 +37,7 @@ async def root():
     return {"status": "ok"}
 
 @app.get("/containers")
-async def getContainers():
+async def getContainers(role: str = Depends(exiger_lecture)):
     response = requests.get(DOCKER + "/containers/json", params={
     "all": "true",
     "filters": '{"label":["adminapi.managed=true"]}'
@@ -51,7 +52,7 @@ async def getContainers():
     return result
 
 @app.get("/containers/{id}")
-async def getContainer(id: str):
+async def getContainer(id: str, role: str = Depends(exiger_lecture)):
     response = requests.get(DOCKER + f"/containers/{id}/json", timeout=5)
     if response.status_code == 404:
         raise HTTPException(status_code=404)
@@ -70,7 +71,7 @@ async def getContainer(id: str):
     }
 
 @app.post("/containers", status_code=201)
-async def creerConteneur(demande: ConteneurACreer):
+async def creerConteneur(demande: ConteneurACreer, role: str = Depends(exiger_admin)):
     corps = {"Image": demande.image, "Labels": {"adminapi.managed": "true"}}
     response = requests.post(
         DOCKER + "/containers/create",
@@ -94,7 +95,7 @@ async def creerConteneur(demande: ConteneurACreer):
     }
 
 @app.post("/containers/{id}/stop")
-async def arreterConteneur(id: str):
+async def arreterConteneur(id: str, role: str = Depends(exiger_admin)):
     get_managed_container(id)
     response = requests.post(DOCKER + f"/containers/{id}/stop", params={"t": 2}, timeout=30)
     if response.status_code == 304:
@@ -111,7 +112,7 @@ async def arreterConteneur(id: str):
 
 
 @app.post("/containers/{id}/start")
-async def demarrerConteneur(id: str):
+async def demarrerConteneur(id: str, role: str = Depends(exiger_admin)):
     get_managed_container(id)
     response = requests.post(DOCKER + f"/containers/{id}/start", timeout=10)
     if response.status_code == 304:
@@ -127,7 +128,7 @@ async def demarrerConteneur(id: str):
     }
 
 @app.delete("/containers/{id}", status_code=204)
-async def supprimerConteneur(id: str):
+async def supprimerConteneur(id: str, role: str = Depends(exiger_admin)):
     get_managed_container(id)
     requests.delete(DOCKER + f"/containers/{id}", params={"force": "true"}, timeout=30).raise_for_status()
     return Response(status_code=204)
