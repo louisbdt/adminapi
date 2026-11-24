@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 import os
 import requests
 import json
@@ -125,3 +125,9 @@ async def demarrerConteneur(id: str):
         "image": data["Config"]["Image"],
         "state": data["State"]["Status"],
     }
+
+@app.delete("/containers/{id}", status_code=204)
+async def supprimerConteneur(id: str):
+    get_managed_container(id)
+    requests.delete(DOCKER + f"/containers/{id}", params={"force": "true"}, timeout=30).raise_for_status()
+    return Response(status_code=204)
