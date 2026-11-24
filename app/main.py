@@ -2,10 +2,20 @@ from fastapi import FastAPI, HTTPException
 import os
 import requests
 import json
+from typing import Literal
+from pydantic import BaseModel, Field
 
 DOCKER = os.environ.get("DOCKER_API_URL", "http://127.0.0.1:2375")
 
 app = FastAPI()
+
+
+Image = Literal["nginx:alpine", "redis:alpine", "httpd:alpine"]
+
+
+class ConteneurACreer(BaseModel):
+    name: str = Field(pattern=r"^[a-z][a-z0-9-]{1,30}$")
+    image: Image
 
 
 @app.get("/health")
@@ -39,6 +49,30 @@ async def getContainer(id: str):
     if labels.get("adminapi.managed") != "true":
         raise HTTPException(status_code=404)
 
+    return {
+        "id": data["Id"],
+        "name": data["Name"].lstrip("/"),
+        "image": data["Config"]["Image"],
+        "state": data["State"]["Status"],
+    }
+
+@app.post("/containers", status_code=201)
+async def creerConteneur(demande: ConteneurACreer):
+    corps = {"Image": demande.image, "Labels": {"adminapi.managed": "true"}}
+    response = requests.post(
+        DOCKER + "/containers/create",
+        params={"name": demande.name},
+        json=corps,
+        timeout=10,
+    )
+    if response.status_code == 409:
+        raise HTTPException(status_code=409)
+    response.raise_for_status()
+    id = response.json()["Id"]
+
+    requests.post(DOCKER + f"/containers/{id}/start", timeout=10).raise_for_status()
+
+    data = requests.get(DOCKER + f"/containers/{id}/json", timeout=5).json()
     return {
         "id": data["Id"],
         "name": data["Name"].lstrip("/"),
